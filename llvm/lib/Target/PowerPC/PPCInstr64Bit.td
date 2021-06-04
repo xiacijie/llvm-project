@@ -1720,3 +1720,17 @@ def SLBIEG : XForm_26<31, 466, (outs), (ins gprc:$RS, gprc:$RB),
 def SLBSYNC : XForm_0<31, 338, (outs), (ins), "slbsync", IIC_SprSLBSYNC, []>;
 
 } // IsISA3_0
+
+// tdne
+def : Pat<(int_ppc_tdw g8rc:$A, g8rc:$B, 3),
+          (TD 24, $A, $B)>;
+// tweq, but we can use tdeq instead
+// as XL produces a tweq <regA>, <regA>.
+def : Pat<(int_ppc_tdw g8rc:$A, g8rc:$B, 31),
+          (TD 4, $A, $B)>;
+def : Pat<(int_ppc_tdw g8rc:$A, g8rc:$B, i32:$IMM),
+          (TD $IMM, $A, $B)>;
+
+// trap, trapd
+def : Pat<(int_ppc_trapd g8rc:$A),
+          (TDI 24, $A, 0)>;

@@ -29,7 +29,7 @@
 #define UNALIASED_CUSTOM_BUILTIN(ID, TYPES, ACCUMULATE) \
    CUSTOM_BUILTIN(ID, ID, TYPES, ACCUMULATE)
 
-// builtins for compatibility with the XL compiler
+// XL Compatibility built-ins
 BUILTIN(__builtin_ppc_popcntb, "ULiULi", "")
 BUILTIN(__builtin_ppc_eieio, "v", "")
 BUILTIN(__builtin_ppc_iospace_eieio, "v", "")
@@ -45,6 +45,18 @@ BUILTIN(__builtin_ppc_dcbt, "vv*", "")
 BUILTIN(__builtin_ppc_dcbtst, "vv*", "")
 BUILTIN(__builtin_ppc_dcbz, "vv*", "")
 BUILTIN(__builtin_ppc_icbt, "vv*", "")
+BUILTIN(__builtin_ppc_tdw, "vLLiLLiIi", "")
+BUILTIN(__builtin_ppc_tw, "viiIi", "")
+BUILTIN(__builtin_ppc_trap, "vi", "")
+BUILTIN(__builtin_ppc_trapd, "vLi", "")
+BUILTIN(__builtin_ppc_fcfid, "dd", "")
+BUILTIN(__builtin_ppc_fcfud, "dd", "")
+BUILTIN(__builtin_ppc_fctid, "dd", "")
+BUILTIN(__builtin_ppc_fctidz, "dd", "")
+BUILTIN(__builtin_ppc_fctiw, "dd", "")
+BUILTIN(__builtin_ppc_fctiwz, "dd", "")
+BUILTIN(__builtin_ppc_fctudz, "dd", "")
+BUILTIN(__builtin_ppc_fctuwz, "dd", "")
 
 BUILTIN(__builtin_ppc_get_timebase, "ULLi", "n")
 

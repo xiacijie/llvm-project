@@ -3331,6 +3331,21 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
      return SemaBuiltinConstantArgRange(TheCall, 2, 0, 7);
   case PPC::BI__builtin_vsx_xxpermx:
      return SemaBuiltinConstantArgRange(TheCall, 3, 0, 7);
+  case PPC::BI__builtin_ppc_tw: {
+    return SemaBuiltinConstantArgRange(TheCall, 2, 1, 31);
+  }
+  case PPC::BI__builtin_ppc_tdw: {
+    return TI.getTypeWidth(TI.getIntPtrType()) == 64 &&
+           SemaBuiltinConstantArgRange(TheCall, 2, 1, 31);
+  }
+  case PPC::BI__builtin_ppc_fcfid:
+  case PPC::BI__builtin_ppc_fcfud:
+  case PPC::BI__builtin_ppc_fctid:
+  case PPC::BI__builtin_ppc_fctidz:
+  case PPC::BI__builtin_ppc_fctudz:
+  case PPC::BI__builtin_ppc_trapd: {
+    return TI.getTypeWidth(TI.getIntPtrType()) == 64;
+  }
 #define CUSTOM_BUILTIN(Name, Intr, Types, Acc) \
   case PPC::BI__builtin_##Name: \
     return SemaBuiltinPPCMMACall(TheCall, Types);

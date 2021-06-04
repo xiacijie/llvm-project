@@ -2836,3 +2836,32 @@ let Predicates = [IsISA3_1, HasVSX, IsBigEndian, IsPPC64] in {
     def : Pat<(v2i64 (PPCvecinsertelt v2i64:$vDi, i64:$rA, (i64 i))),
               (VINSD $vDi, !mul(i, 8), $rA)>;
 }
+
+// XL Compatibility
+// twne
+def : Pat<(int_ppc_tw gprc:$A, gprc:$B, 3),
+          (TW 24, $A, $B)>;
+// tweq
+def : Pat<(int_ppc_tw gprc:$A, gprc:$B, 31),
+          (TW 4, $A, $B)>;
+def : Pat<(int_ppc_tw gprc:$A, gprc:$B, i32:$IMM),
+          (TW $IMM, $A, $B)>;
+def : Pat<(int_ppc_trap gprc:$A),
+          (TWI 24, $A, 0)>;
+
+def : Pat<(int_ppc_fcfid f64:$A),
+        (XSCVSXDDP $A)>;
+def : Pat<(int_ppc_fcfud f64:$A),
+        (XSCVUXDDP $A)>;
+def : Pat<(int_ppc_fctid f64:$A),
+        (FCTID $A)>;
+def : Pat<(int_ppc_fctidz f64:$A),
+        (XSCVDPSXDS $A)>;
+def : Pat<(int_ppc_fctiw f64:$A),
+        (FCTIW $A)>;
+def : Pat<(int_ppc_fctiwz f64:$A),
+        (XSCVDPSXWS $A)>;
+def : Pat<(int_ppc_fctudz f64:$A),
+        (XSCVDPUXDS $A)>;
+def : Pat<(int_ppc_fctuwz f64:$A),
+        (XSCVDPUXWS $A)>;

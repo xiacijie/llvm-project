@@ -97,6 +97,18 @@ static void defineXLCompatMacros(MacroBuilder &Builder) {
   Builder.defineMacro("__dcbtst", "__builtin_ppc_dcbtst");
   Builder.defineMacro("__dcbz", "__builtin_ppc_dcbz");
   Builder.defineMacro("__icbt", "__builtin_ppc_icbt");
+  Builder.defineMacro("__tdw", "__builtin_ppc_tdw");
+  Builder.defineMacro("__tw", "__builtin_ppc_tw");
+  Builder.defineMacro("__trap", "__builtin_ppc_trap");
+  Builder.defineMacro("__trapd", "__builtin_ppc_trapd");
+  Builder.defineMacro("__fcfid", "__builtin_ppc_fcfid");
+  Builder.defineMacro("__fcfud", "__builtin_ppc_fcfud");
+  Builder.defineMacro("__fctid", "__builtin_ppc_fctid");
+  Builder.defineMacro("__fctidz", "__builtin_ppc_fctidz");
+  Builder.defineMacro("__fctiw", "__builtin_ppc_fctiw");
+  Builder.defineMacro("__fctiwz", "__builtin_ppc_fctiwz");
+  Builder.defineMacro("__fctudz", "__builtin_ppc_fctudz");
+  Builder.defineMacro("__fctuwz", "__builtin_ppc_fctuwz");
 }
 
 /// PPCTargetInfo::getTargetDefines - Return a set of the PowerPC-specific
