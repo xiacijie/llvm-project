@@ -2837,6 +2837,10 @@ let Predicates = [IsISA3_1, HasVSX, IsBigEndian, IsPPC64] in {
               (VINSD $vDi, !mul(i, 8), $rA)>;
 }
 
+let Predicates = [HasP8Altivec] in {
+def : Pat<(int_ppc_ldarx xoaddr:$dst),
+          (LDARX xoaddr:$dst)>;
+}
 def : Pat<(int_ppc_lwarx xoaddr:$dst),
           (LWARX xoaddr:$dst)>;
 def : Pat<(int_ppc_lharx xoaddr:$dst),
