@@ -6,3 +6,9 @@ long test_ldarx(volatile long* a) {
   // CHECK-NEXT:  blr
   return __ldarx(a);
 }
+
+int test_stdcx(volatile long* addr, long val) {
+  // CHECK-LABEL: test_stdcx
+  // CHECK:       stdcx. 3, 0, 4
+  return __stdcx(addr, val);
+}

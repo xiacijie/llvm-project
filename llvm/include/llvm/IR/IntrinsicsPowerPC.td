@@ -1531,5 +1531,13 @@ let TargetPrefix = "ppc" in {
                       Intrinsic<[llvm_i32_ty], [llvm_ptr_ty], [IntrNoMem]>;
   def int_ppc_lbarx : GCCBuiltin<"__builtin_ppc_lbarx">,
                       Intrinsic<[llvm_i32_ty], [llvm_ptr_ty], [IntrNoMem]>;
+  def int_ppc_stdcx : GCCBuiltin<"__builtin_ppc_stdcx">,
+                      Intrinsic<[llvm_i32_ty], [llvm_ptr_ty, llvm_i64_ty], [IntrWriteMem]>;
+  def int_ppc_stwcx : GCCBuiltin<"__builtin_ppc_stwcx">,
+                      Intrinsic<[llvm_i32_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem]>;
+  def int_ppc_sthcx : GCCBuiltin<"__builtin_ppc_sthcx">,
+                      Intrinsic<[llvm_i32_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem]>;
+  def int_ppc_stbcx : GCCBuiltin<"__builtin_ppc_stbcx">,
+                      Intrinsic<[llvm_i32_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem]>;
 }
 

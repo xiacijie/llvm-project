@@ -371,6 +371,10 @@ public:
     Builder.defineMacro("__lwarx", "__builtin_ppc_lwarx");
     Builder.defineMacro("__lharx", "__builtin_ppc_lharx");
     Builder.defineMacro("__lbarx", "__builtin_ppc_lbarx");
+    Builder.defineMacro("__stdcx", "__builtin_ppc_stdcx");
+    Builder.defineMacro("__stwcx", "__builtin_ppc_stwcx");
+    Builder.defineMacro("__sthcx", "__builtin_ppc_sthcx");
+    Builder.defineMacro("__stbcx", "__builtin_ppc_stbcx");
   }
 };
 
