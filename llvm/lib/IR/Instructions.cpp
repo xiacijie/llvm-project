@@ -2936,6 +2936,8 @@ unsigned CastInst::isEliminableCastPair(
 
 CastInst *CastInst::Create(Instruction::CastOps op, Value *S, Type *Ty,
   const Twine &Name, Instruction *InsertBefore) {
+  dbgs() << "Op code bitcast: " << BitCast << "\n";
+  dbgs() << "DEBUG CREATE BEFORE: " << op << " NEXT " << *S << " TYPE " << *Ty << "\n";
   assert(castIsValid(op, S, Ty) && "Invalid cast!");
   // Construct and return the appropriate CastInst subclass
   switch (op) {

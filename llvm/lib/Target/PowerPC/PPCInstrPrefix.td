@@ -2849,9 +2849,9 @@ def : Pat<(int_ppc_lharx xoaddr:$dst),
           (LHARX xoaddr:$dst)>;
 def : Pat<(int_ppc_lbarx xoaddr:$dst),
           (LBARX xoaddr:$dst)>;
-def : Pat<(int_ppc_stwcx xoaddr:$dst, gprc:$A),
-          (STWCX gprc:$A, xoaddr:$dst)>;
-def : Pat<(int_ppc_sthcx xoaddr:$dst, gprc:$A),
-          (STHCX gprc:$A, xoaddr:$dst)>;
+// def : Pat<(int_ppc_stwcx xoaddr:$dst, gprc:$A),
+          // (STWCX gprc:$A, xoaddr:$dst)>;
+def : Pat<(int_ppc_sthcx xoaddr:$dst, (sextloadi32 gprc:$A)),
+          (STHCX (EXTSH gprc:$A), xoaddr:$dst)>;
 def : Pat<(int_ppc_stbcx xoaddr:$dst, gprc:$A),
-          (STBCX gprc:$A, xoaddr:$dst)>;
+          (STBCX (EXTSB gprc:$A), xoaddr:$dst)>;
