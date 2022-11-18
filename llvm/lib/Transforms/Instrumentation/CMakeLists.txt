@@ -19,7 +19,8 @@ add_llvm_component_library(LLVMInstrumentation
   ValueProfileCollector.cpp
   ThreadSanitizer.cpp
   HWAddressSanitizer.cpp
-
+  BranchPredictPass.cpp
+  
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms
 
