@@ -7,12 +7,27 @@
 #include <fstream>
 #include <string>
 #include <iostream>
-// #include <torch/script.h>
 
 namespace llvm {
     
 static cl::opt<bool> EnableCollectDataset("collect-dataset", cl::init(false), cl::Hidden, cl::desc("collect dataset"));
 static cl::opt<bool> EnableEqualBranchProb("equal-branch-prob", cl::init(false), cl::Hidden, cl::desc("make branch probabilities 50% 50%"));
+static cl::opt<bool> EnableBranchProbPredict("branch-prob-predict", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities"));
+
+std::string exec(const std::string& Command) {
+    std::shared_ptr<FILE> Pipe(popen(Command.c_str(), "r"), pclose);
+    if (!Pipe)
+        assert(false && "Pipe failed to open!\n");
+
+    char Buffer[128];
+
+    std::string Result = "";
+    while (!feof(Pipe.get())) {
+        if (fgets(Buffer, 128, Pipe.get()) != NULL)
+            Result += Buffer;
+    }
+    return Result;
+}
 
 std::string getEnv( const std::string & Var ) {
      const char * Val = std::getenv( Var.c_str() );
@@ -21,6 +36,12 @@ std::string getEnv( const std::string & Var ) {
      }
     return Val;
     
+}
+
+void BranchPredictPass::predictBranchProb(Function& F, LoopInfo *LI, DominatorTree *DT) {
+    std::string ModelPath = getEnv("MODEL_ROOT");
+    std::cout << exec("python3 " + ModelPath + "/model.py") <<std::endl;
+
 }
 
 void BranchPredictPass::assignEqualBranchProb(Function &F) {
@@ -157,7 +178,10 @@ PreservedAnalyses BranchPredictPass::run(Function &F, FunctionAnalysisManager &A
 
     if (EnableCollectDataset)
         gatherDataset(F,&LI,&DT);
-        
+    
+    if (EnableBranchProbPredict) {
+        predictBranchProb(F, &LI, &DT);
+    }
     return PreservedAnalyses::all();
 }
 
