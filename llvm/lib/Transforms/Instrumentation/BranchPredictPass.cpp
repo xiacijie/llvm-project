@@ -12,7 +12,7 @@ namespace llvm {
     
 static cl::opt<bool> EnableCollectDataset("collect-dataset", cl::init(false), cl::Hidden, cl::desc("collect dataset"));
 static cl::opt<bool> EnableEqualBranchProb("equal-branch-prob", cl::init(false), cl::Hidden, cl::desc("make branch probabilities 50% 50%"));
-static cl::opt<bool> EnableBranchProbPredict("branch-prob-predict", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities"));
+static cl::opt<bool> EnableBranchProbPredictLinear("branch-prob-predict-linear", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using linear NN"));
 
 std::string exec(const std::string& Command) {
     std::shared_ptr<FILE> Pipe(popen(Command.c_str(), "r"), pclose);
@@ -30,18 +30,33 @@ std::string exec(const std::string& Command) {
 }
 
 std::string getEnv( const std::string & Var ) {
-     const char * Val = std::getenv( Var.c_str() );
-     if ( Val == nullptr ) { // invalid to assign nullptr to std::string
-         return "";
-     }
+    const char * Val = std::getenv( Var.c_str() );
+    if ( Val == nullptr ) { // invalid to assign nullptr to std::string
+        return "";
+    }
     return Val;
-    
 }
 
-void BranchPredictPass::predictBranchProb(Function& F, LoopInfo *LI, DominatorTree *DT) {
-    std::string ModelPath = getEnv("MODEL_ROOT");
-    std::cout << exec("python3 " + ModelPath + "/model.py") <<std::endl;
+void BranchPredictPass::predictBranchProbLinear(Function& F, LoopInfo *LI, DominatorTree *DT) {
+    std::string ModelPath = getEnv("LINEAR_NN_MODEL");
+    
+    std::set<BasicBlock *> Visited;
 
+    for (BasicBlock& BB :F) {
+        BranchInst *BR = dyn_cast<BranchInst>(BB.getTerminator());
+        if (!BR)
+            continue;
+        if (BR->isUnconditional())
+            continue;
+
+        BranchFeatures BF;
+        gatherBranchFeatures(BF, BR, LI, DT, Visited);
+        std::string FeatureString = BF.toCSVLine();
+        FeatureString = FeatureString.substr(0, FeatureString.size() - 1);
+        std::string Result = exec("python3 " + ModelPath + " " + FeatureString);
+        unsigned int LeftProb = (std::stof(Result) * 100);
+        assignBranchProb(BR, LeftProb);
+    } 
 }
 
 void BranchPredictPass::assignEqualBranchProb(Function &F) {
@@ -56,17 +71,17 @@ void BranchPredictPass::assignEqualBranchProb(Function &F) {
 Optional<uint64_t> getBranchProb(BranchInst *BR) {
     MDNode *WeightsNode = BR->getMetadata(LLVMContext::MD_prof);
     if (!WeightsNode)
-    return None;
+        return None;
 
     if (WeightsNode->getNumOperands() != BR->getNumSuccessors() + 1)
-    return None;
+        return None;
 
     auto &V1 = WeightsNode->getOperand(1);
     auto &V2 = WeightsNode->getOperand(2);
     ConstantInt *W1 = mdconst::dyn_extract<ConstantInt>(V1);
     ConstantInt *W2 = mdconst::dyn_extract<ConstantInt>(V2);
     if (!W1 || !W2)
-    return None;
+        return None;
 
     uint64_t Left = W1->getZExtValue();
     uint64_t Right = W2->getZExtValue();
@@ -161,11 +176,30 @@ void BranchPredictPass::gatherDataset(Function& F, LoopInfo *LI, DominatorTree *
         gatherBranchFeatures(BF, BR, LI, DT, Visited);
         
         auto Ratio = BP.value();
-        // std::cout << "========== " << Ratio << "===========" << std::endl;
         std::string FilePath = getEnv("PROJECT_ROOT") + "/dataset/dataset.csv";
+
+        std::ifstream F(FilePath.c_str());
+        if (!F.good()) { // file does not exists yet
+            std::ofstream DatasetFile;
+            DatasetFile.open(FilePath, std::ios_base::app);
+            auto Last = BranchFeatures::Features::last;
+            std::string Header = "";
+            for (int I = 0; I < Last; I++) {
+                Header += std::to_string(I) + ",";
+            } 
+            Header += "left_prob";
+            Header += ",";
+            Header += "right_prob";
+            DatasetFile << Header << std::endl;
+        } 
+
         std::ofstream DatasetFile;
         DatasetFile.open(FilePath, std::ios_base::app);
-        DatasetFile << BF.toCSVLine() << std::to_string(Ratio) << std::endl;
+
+        float LeftProb = float(Ratio) / 100;
+        float RightProb = 1 - LeftProb;
+
+        DatasetFile << BF.toCSVLine() << std::to_string(LeftProb) << "," << std::to_string(RightProb) << std::endl;  
     }
 }
 
@@ -179,9 +213,11 @@ PreservedAnalyses BranchPredictPass::run(Function &F, FunctionAnalysisManager &A
     if (EnableCollectDataset)
         gatherDataset(F,&LI,&DT);
     
-    if (EnableBranchProbPredict) {
-        predictBranchProb(F, &LI, &DT);
+    // predict the branch probability using linear neural network
+    if (EnableBranchProbPredictLinear) {
+        predictBranchProbLinear(F, &LI, &DT);
     }
+    
     return PreservedAnalyses::all();
 }
 
