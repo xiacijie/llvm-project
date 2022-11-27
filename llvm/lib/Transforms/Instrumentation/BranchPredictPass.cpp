@@ -17,9 +17,10 @@ class PythonBranchPredictModel {
     public:
         PythonBranchPredictModel();
         ~PythonBranchPredictModel();
-        float predict(BranchFeatures& BF);
+        unsigned int predict(BranchFeatures& BF);
     private:
         PyObject* Model;
+        PyObject* PredictFunc;
 };
 
 PythonBranchPredictModel* getPythonModel() {
@@ -70,34 +71,41 @@ PythonBranchPredictModel::PythonBranchPredictModel() {
     Py_Initialize();
     PyRun_SimpleString("import sys");
     PyRun_SimpleString(("sys.path.append('"+getEnv("MODEL_ROOT") +"')").c_str());
-    // wchar_t* ModelPath = charToWChar(getEnv("MODEL_ROOT").c_str());
-    // std::cout << ModelPath << std::endl;
-    // PySys_SetPath(ModelPath);
-    // delete ModelPath;
 
     PyObject *Pval;
-    Pval = PyUnicode_FromString("LinearNNModelPredict");
+    Pval = PyUnicode_FromString("MLPClassificationPredict");
     Model = PyImport_Import(Pval);
     if (Model == NULL) {
         std::cout << "ERROR in loading the model" << std::endl;
     }
-    
-    Py_IncRef(Model);
+
+    PredictFunc = PyObject_GetAttr(Model, PyUnicode_FromString("predict"));
+    if (PredictFunc == NULL) {
+        std::cout << "ERROR in getting the func" << std::endl;
+    }
 }
 
-float PythonBranchPredictModel::predict(BranchFeatures &BF) {
-    PyObject* PyFunc = PyObject_GetAttr(Model, PyUnicode_FromString("foo"));
-    PyObject_CallObject(PyFunc, PyUnicode_FromString("123"));
-    return 1.0;
+unsigned int PythonBranchPredictModel::predict(BranchFeatures &BF) {
+    std::string FeatureString = BF.toCSVLine();
+    FeatureString = FeatureString.substr(0, FeatureString.size() - 1);
+
+    PyObject *PythonArgument;
+    PythonArgument = PyTuple_New(1);
+    PyTuple_SetItem(PythonArgument, 0, PyUnicode_FromString(FeatureString.c_str()));
+    PyObject* Res = PyObject_CallObject(PredictFunc, PythonArgument);
+
+    if (PyErr_Occurred()) {
+        PyErr_PrintEx(0);
+        PyErr_Clear(); 
+    }
+  
+    unsigned int Ratio = (1 - std::stoi(PyUnicode_AsUTF8(Res)) ) * 100;
+    return Ratio;
 }
-
-
 
 void BranchPredictPass::predictBranchProbLinear(Function& F, LoopInfo *LI, DominatorTree *DT) {
     auto *Model = getPythonModel();
-    BranchFeatures A;
-    Model->predict(A);
-
+   
     std::set<BasicBlock *> Visited;
 
     for (BasicBlock& BB :F) {
@@ -109,12 +117,9 @@ void BranchPredictPass::predictBranchProbLinear(Function& F, LoopInfo *LI, Domin
 
         BranchFeatures BF;
         gatherBranchFeatures(BF, BR, LI, DT, Visited);
-        std::string FeatureString = BF.toCSVLine();
-        FeatureString = FeatureString.substr(0, FeatureString.size() - 1);
-        // std::string Result = exec( ModelPath );
-        // unsigned int LeftProb = (std::stof(Result) * 100);
 
-        assignBranchProb(BR, 20);
+        unsigned int LeftProb =  Model->predict(BF);
+        assignBranchProb(BR, LeftProb);
     } 
 }
 
