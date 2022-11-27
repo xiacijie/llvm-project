@@ -1,4 +1,5 @@
 #include "llvm/Transforms/Instrumentation/BranchPredictPass.h"
+#include "object.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instructions.h"
@@ -7,8 +8,24 @@
 #include <fstream>
 #include <string>
 #include <iostream>
+#include <Python.h>
 
 namespace llvm {
+
+    
+class PythonBranchPredictModel {
+    public:
+        PythonBranchPredictModel();
+        ~PythonBranchPredictModel();
+        float predict(BranchFeatures& BF);
+    private:
+        PyObject* Model;
+};
+
+PythonBranchPredictModel* getPythonModel() {
+    thread_local static PythonBranchPredictModel Model;
+    return &Model;
+}
     
 static cl::opt<bool> EnableCollectDataset("collect-dataset", cl::init(false), cl::Hidden, cl::desc("collect dataset"));
 static cl::opt<bool> EnableEqualBranchProb("equal-branch-prob", cl::init(false), cl::Hidden, cl::desc("make branch probabilities 50% 50%"));
@@ -18,7 +35,7 @@ std::string exec(const std::string& Command) {
     std::shared_ptr<FILE> Pipe(popen(Command.c_str(), "r"), pclose);
     if (!Pipe)
         assert(false && "Pipe failed to open!\n");
-
+        
     char Buffer[128];
 
     std::string Result = "";
@@ -37,9 +54,50 @@ std::string getEnv( const std::string & Var ) {
     return Val;
 }
 
-void BranchPredictPass::predictBranchProbLinear(Function& F, LoopInfo *LI, DominatorTree *DT) {
-    std::string ModelPath = getEnv("LINEAR_NN_MODEL");
+wchar_t* charToWChar(const char* Text)
+{
+    const size_t Size = strlen(Text) + 1;
+    wchar_t* WText = new wchar_t[Size];
+    mbstowcs(WText, Text, Size);
+    return WText;
+}
+
+PythonBranchPredictModel::~PythonBranchPredictModel() {
+    Py_DECREF(Model);
+}
+
+PythonBranchPredictModel::PythonBranchPredictModel() {
+    Py_Initialize();
+    PyRun_SimpleString("import sys");
+    PyRun_SimpleString(("sys.path.append('"+getEnv("MODEL_ROOT") +"')").c_str());
+    // wchar_t* ModelPath = charToWChar(getEnv("MODEL_ROOT").c_str());
+    // std::cout << ModelPath << std::endl;
+    // PySys_SetPath(ModelPath);
+    // delete ModelPath;
+
+    PyObject *Pval;
+    Pval = PyUnicode_FromString("LinearNNModelPredict");
+    Model = PyImport_Import(Pval);
+    if (Model == NULL) {
+        std::cout << "ERROR in loading the model" << std::endl;
+    }
     
+    Py_IncRef(Model);
+}
+
+float PythonBranchPredictModel::predict(BranchFeatures &BF) {
+    PyObject* PyFunc = PyObject_GetAttr(Model, PyUnicode_FromString("foo"));
+    PyObject_CallObject(PyFunc, PyUnicode_FromString("123"));
+    return 1.0;
+}
+
+
+
+void BranchPredictPass::predictBranchProbLinear(Function& F, LoopInfo *LI, DominatorTree *DT) {
+    auto *Model = getPythonModel();
+    BranchFeatures A;
+    Model->predict(A);
+
     std::set<BasicBlock *> Visited;
 
     for (BasicBlock& BB :F) {
@@ -53,9 +111,10 @@ void BranchPredictPass::predictBranchProbLinear(Function& F, LoopInfo *LI, Domin
         gatherBranchFeatures(BF, BR, LI, DT, Visited);
         std::string FeatureString = BF.toCSVLine();
         FeatureString = FeatureString.substr(0, FeatureString.size() - 1);
-        std::string Result = exec("python3 " + ModelPath + " " + FeatureString);
-        unsigned int LeftProb = (std::stof(Result) * 100);
-        assignBranchProb(BR, LeftProb);
+        // std::string Result = exec( ModelPath );
+        // unsigned int LeftProb = (std::stof(Result) * 100);
+
+        assignBranchProb(BR, 20);
     } 
 }
 

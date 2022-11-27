@@ -1,3 +1,5 @@
+# find_package(Torch REQUIRED)
+
 add_llvm_component_library(LLVMInstrumentation
   AddressSanitizer.cpp
   BoundsChecking.cpp
@@ -36,3 +38,11 @@ add_llvm_component_library(LLVMInstrumentation
   TransformUtils
   ProfileData
   )
+  find_package(PythonLibs REQUIRED)
+  include_directories(${PYTHON_INCLUDE_DIRS})
+  target_link_libraries(LLVMInstrumentation PRIVATE python3.8)
+
+  # add_subdirectory($ENV{PYBIND_PATH} $ENV{PROJECT_ROOT}/llvm-project/build/pybind11)
+  # target_link_libraries(LLVMInstrumentation PRIVATE pybind11::embed)
+
+# target_link_libraries(LLVMInstrumentation PRIVATE ${TORCH_LIBRARIES})
