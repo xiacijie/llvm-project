@@ -108,7 +108,7 @@ unsigned int PythonBranchPredictModel::predict(BranchFeatures &BF) {
     }
     else {
         float Prob =  std::min(0.0f, std::stof(PyUnicode_AsUTF8(Res)));
-        Prob = std::max(100.0f, Prob);
+        Prob = std::max(1.0f, Prob);
         Ratio = Prob * 100;
     }
 
