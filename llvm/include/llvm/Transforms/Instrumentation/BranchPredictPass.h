@@ -18,7 +18,7 @@ private:
     void gatherDataset(Function& F, LoopInfo *LI, DominatorTree *DT);
     void gatherBranchFeatures(BranchFeatures& BF, BranchInst* BR, LoopInfo *LI, DominatorTree* DT, std::set<BasicBlock *> &Visited);
     void assignEqualBranchProb(Function &F);
-    void predictBranchProbLinear(Function& F, LoopInfo *LI, DominatorTree *DT);
+    void predictBranchProb(Function& F, LoopInfo *LI, DominatorTree *DT, const std::string & ModelName);
     void assignBranchProb(BranchInst* Branch, unsigned Prob);
 
 public:
