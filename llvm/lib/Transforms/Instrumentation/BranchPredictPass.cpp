@@ -34,7 +34,7 @@ static cl::opt<bool> EnableBranchProbPredictMLPC("branch-prob-predict-mlpc", cl:
 static cl::opt<bool> EnableBranchProbPredictMLPR("branch-prob-predict-mlpr", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using MLP regression"));
 static cl::opt<bool> EnableBranchProbPredictSVMR("branch-prob-predict-svmr", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using SVM regression"));
 static cl::opt<bool> EnableBranchProbPredictAdaR("branch-prob-predict-adar", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using AdaBoost regression"));
-
+static cl::opt<bool> EnableBranchProbPredictRanR("branch-prob-predict-ranr", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using Randon Forest regression"));
 std::string exec(const std::string& Command) {
     std::shared_ptr<FILE> Pipe(popen(Command.c_str(), "r"), pclose);
     if (!Pipe)
@@ -303,6 +303,9 @@ PreservedAnalyses BranchPredictPass::run(Function &F, FunctionAnalysisManager &A
     }
     else if (EnableBranchProbPredictAdaR) {
         predictBranchProb(F, &LI, &DT, "AdaRegressionPredict");
+    }
+    else if (EnableBranchProbPredictRanR) {
+        predictBranchProb(F, &LI, &DT, "RandomForestRegressionPredict");
     }
     
     return PreservedAnalyses::all();
