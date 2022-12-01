@@ -35,6 +35,7 @@ static cl::opt<bool> EnableBranchProbPredictMLPR("branch-prob-predict-mlpr", cl:
 static cl::opt<bool> EnableBranchProbPredictSVMR("branch-prob-predict-svmr", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using SVM regression"));
 static cl::opt<bool> EnableBranchProbPredictAdaR("branch-prob-predict-adar", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using AdaBoost regression"));
 static cl::opt<bool> EnableBranchProbPredictRanR("branch-prob-predict-ranr", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using Randon Forest regression"));
+
 std::string exec(const std::string& Command) {
     std::shared_ptr<FILE> Pipe(popen(Command.c_str(), "r"), pclose);
     if (!Pipe)
