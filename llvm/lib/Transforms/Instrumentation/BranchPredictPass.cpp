@@ -1,4 +1,5 @@
 #include "llvm/Transforms/Instrumentation/BranchPredictPass.h"
+#include "object.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instructions.h"
@@ -8,19 +9,40 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <Python.h>
 
 namespace llvm {
+
+    
+class PythonBranchPredictModel {
+    public:
+        PythonBranchPredictModel(const std::string& ModelName);
+        ~PythonBranchPredictModel();
+        unsigned int predict(BranchFeatures& BF);
+    private:
+        PyObject* Model;
+        PyObject* PredictFunc;
+};
+
+PythonBranchPredictModel* getPythonModel(const std::string& ModelName) {
+    thread_local static PythonBranchPredictModel Model(ModelName);
+    return &Model;
+}
     
 static cl::opt<bool> EnableCollectDataset("collect-dataset", cl::init(false), cl::Hidden, cl::desc("collect dataset"));
 static cl::opt<bool> EnableCollectCFG("collect-cfg", cl::init(false), cl::Hidden, cl::desc("collect cfg"));
 static cl::opt<bool> EnableEqualBranchProb("equal-branch-prob", cl::init(false), cl::Hidden, cl::desc("make branch probabilities 50% 50%"));
-static cl::opt<bool> EnableBranchProbPredictLinear("branch-prob-predict-linear", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using linear NN"));
+static cl::opt<bool> EnableBranchProbPredictMLPC("branch-prob-predict-mlpc", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using MLP classification"));
+static cl::opt<bool> EnableBranchProbPredictMLPR("branch-prob-predict-mlpr", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using MLP regression"));
+static cl::opt<bool> EnableBranchProbPredictSVMR("branch-prob-predict-svmr", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using SVM regression"));
+static cl::opt<bool> EnableBranchProbPredictAdaR("branch-prob-predict-adar", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using AdaBoost regression"));
+static cl::opt<bool> EnableBranchProbPredictRanR("branch-prob-predict-ranr", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using Randon Forest regression"));
 
 std::string exec(const std::string& Command) {
     std::shared_ptr<FILE> Pipe(popen(Command.c_str(), "r"), pclose);
     if (!Pipe)
         assert(false && "Pipe failed to open!\n");
-
+        
     char Buffer[128];
 
     std::string Result = "";
@@ -39,9 +61,66 @@ std::string getEnv( const std::string & Var ) {
     return Val;
 }
 
-void BranchPredictPass::predictBranchProbLinear(Function& F, LoopInfo *LI, DominatorTree *DT) {
-    std::string ModelPath = getEnv("LINEAR_NN_MODEL");
-    
+wchar_t* charToWChar(const char* Text)
+{
+    const size_t Size = strlen(Text) + 1;
+    wchar_t* WText = new wchar_t[Size];
+    mbstowcs(WText, Text, Size);
+    return WText;
+}
+
+PythonBranchPredictModel::~PythonBranchPredictModel() {
+    Py_DECREF(Model);
+}
+
+PythonBranchPredictModel::PythonBranchPredictModel(const std::string& ModelName) {
+    Py_Initialize();
+    PyRun_SimpleString("import sys");
+    PyRun_SimpleString(("sys.path.append('"+getEnv("MODEL_ROOT") +"')").c_str());
+
+    PyObject *Pval;
+    Pval = PyUnicode_FromString(ModelName.c_str());
+    Model = PyImport_Import(Pval);
+    if (Model == NULL) {
+        std::cout << "ERROR in loading the model: " << ModelName << std::endl;
+    }
+
+    PredictFunc = PyObject_GetAttr(Model, PyUnicode_FromString("predict"));
+    if (PredictFunc == NULL) {
+        std::cout << "ERROR in getting the func" << std::endl;
+    }
+}
+
+unsigned int PythonBranchPredictModel::predict(BranchFeatures &BF) {
+    std::string FeatureString = BF.toCSVLine();
+    FeatureString = FeatureString.substr(0, FeatureString.size() - 1);
+
+    PyObject *PythonArgument;
+    PythonArgument = PyTuple_New(1);
+    PyTuple_SetItem(PythonArgument, 0, PyUnicode_FromString(FeatureString.c_str()));
+    PyObject* Res = PyObject_CallObject(PredictFunc, PythonArgument);
+
+    if (PyErr_Occurred()) {
+        PyErr_PrintEx(0);
+        PyErr_Clear(); 
+    }
+
+    unsigned int Ratio;
+    if (EnableBranchProbPredictMLPC) {
+        Ratio = (1 - std::stoi(PyUnicode_AsUTF8(Res)) ) * 100;
+    }
+    else {
+        float Prob =  std::min(0.0f, std::stof(PyUnicode_AsUTF8(Res)));
+        Prob = std::max(1.0f, Prob);
+        Ratio = Prob * 100;
+    }
+
+    return Ratio;
+}
+
+void BranchPredictPass::predictBranchProb(Function& F, LoopInfo *LI, DominatorTree *DT, const std::string& ModelName) {
+    auto *Model = getPythonModel(ModelName);
+   
     std::set<BasicBlock *> Visited;
 
     for (BasicBlock& BB :F) {
@@ -53,13 +132,12 @@ void BranchPredictPass::predictBranchProbLinear(Function& F, LoopInfo *LI, Domin
 
         BranchFeatures BF;
         gatherBranchFeatures(BF, BR, LI, DT, Visited);
-        std::string FeatureString = BF.toCSVLine();
-        FeatureString = FeatureString.substr(0, FeatureString.size() - 1);
-        std::string Result = exec("python3 " + ModelPath + " " + FeatureString);
-        unsigned int LeftProb = (std::stof(Result) * 100);
+
+        unsigned int LeftProb =  Model->predict(BF);
         assignBranchProb(BR, LeftProb);
     } 
 }
+
 
 void BranchPredictPass::assignEqualBranchProb(Function &F) {
     for (BasicBlock & BB: F) {
@@ -170,15 +248,14 @@ static std::string getSimpleNodeLabel(const BasicBlock *Node) {
     return OS.str();
 }
 
-void BranchPredictPass::gatherDataset(Function& F, LoopInfo *LI, DominatorTree *DT) {
+void BranchPredictPass::gatherDatasetCFG(Function& F, LoopInfo *LI, DominatorTree *DT) {
     std::set<BasicBlock *> Visited;
-    std::string FilePath = getEnv("PROJECT_ROOT") + "/dataset/dataset.csv";
+    std::string FilePath = getEnv("PROJECT_ROOT") + "/dataset/dataset_cfg.csv";
     std::ostringstream ss;
  
     ss << "f" << std::endl;
     // DatasetFile << llvm::llvm_is_multithreaded() << std::endl;
     for (BasicBlock& BB :F) {
-        // std::string FilePath = getEnv("PROJECT_ROOT") + "/dataset/dataset" + EnableCollectCFG ? ".txt" : ".csv";
         auto name = getSimpleNodeLabel(&BB);
 
         ss << "g," << name;
@@ -216,19 +293,80 @@ void BranchPredictPass::gatherDataset(Function& F, LoopInfo *LI, DominatorTree *
     DatasetFile.close();
 }
 
+void BranchPredictPass::gatherDataset(Function& F, LoopInfo *LI, DominatorTree *DT) {
+    std::set<BasicBlock *> Visited;
+    for (BasicBlock& BB :F) {
+        BranchInst *BR = dyn_cast<BranchInst>(BB.getTerminator());
+        if (!BR)
+            continue;
+        if (BR->isUnconditional())
+            continue;
+
+        auto BP = getBranchProb(BR);
+        if (!BP.has_value()) {
+            continue;
+        }
+
+        BranchFeatures BF;
+        gatherBranchFeatures(BF, BR, LI, DT, Visited);
+        
+        auto Ratio = BP.value();
+        std::string FilePath = getEnv("PROJECT_ROOT") + "/dataset/dataset.csv";
+
+        std::ifstream F(FilePath.c_str());
+        if (!F.good()) { // file does not exists yet
+            std::ofstream DatasetFile;
+            DatasetFile.open(FilePath, std::ios_base::app);
+            auto Last = BranchFeatures::Features::last;
+            std::string Header = "";
+            for (int I = 0; I < Last; I++) {
+                Header += std::to_string(I) + ",";
+            } 
+            Header += "left_prob";
+            Header += ",";
+            Header += "right_prob";
+            DatasetFile << Header << std::endl;
+        } 
+
+        std::ofstream DatasetFile;
+        DatasetFile.open(FilePath, std::ios_base::app);
+
+        float LeftProb = float(Ratio) / 100;
+        float RightProb = 1 - LeftProb;
+
+        DatasetFile << BF.toCSVLine() << std::to_string(LeftProb) << "," << std::to_string(RightProb) << std::endl;  
+    }
+}
+
 PreservedAnalyses BranchPredictPass::run(Function &F, FunctionAnalysisManager &AM) {
     auto &LI = AM.getResult<LoopAnalysis>(F);
     auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
+
     if (EnableEqualBranchProb) {
         assignEqualBranchProb(F);
     }
-
+    
     if (EnableCollectDataset)
         gatherDataset(F,&LI,&DT);
     
-    // predict the branch probability using linear neural network
-    if (EnableBranchProbPredictLinear) {
-        predictBranchProbLinear(F, &LI, &DT);
+    if (EnableCollectCFG)
+        gatherDatasetCFG(F,&LI,&DT);
+    
+    // predict the branch probability using MLP classification
+    if (EnableBranchProbPredictMLPC) {
+        predictBranchProb(F, &LI, &DT, "MLPClassificationPredict");
+    }
+    else if (EnableBranchProbPredictMLPR) {
+        predictBranchProb(F, &LI, &DT, "MLPRegressionPredict");
+    }
+    else if (EnableBranchProbPredictSVMR) {
+        predictBranchProb(F, &LI, &DT, "SVMRegressionPredict");
+    }
+    else if (EnableBranchProbPredictAdaR) {
+        predictBranchProb(F, &LI, &DT, "AdaRegressionPredict");
+    }
+    else if (EnableBranchProbPredictRanR) {
+        predictBranchProb(F, &LI, &DT, "RandomForestRegressionPredict");
     }
     
     return PreservedAnalyses::all();
