@@ -30,7 +30,6 @@ PythonBranchPredictModel* getPythonModel(const std::string& ModelName) {
 }
     
 static cl::opt<bool> EnableCollectDataset("collect-dataset", cl::init(false), cl::Hidden, cl::desc("collect dataset"));
-static cl::opt<bool> EnableCollectCFG("collect-cfg", cl::init(false), cl::Hidden, cl::desc("collect cfg"));
 static cl::opt<bool> EnableEqualBranchProb("equal-branch-prob", cl::init(false), cl::Hidden, cl::desc("make branch probabilities 50% 50%"));
 static cl::opt<bool> EnableBranchProbPredictMLPC("branch-prob-predict-mlpc", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using MLP classification"));
 static cl::opt<bool> EnableBranchProbPredictMLPR("branch-prob-predict-mlpr", cl::init(false), cl::Hidden, cl::desc("predict the branch probabilities using MLP regression"));
@@ -248,13 +247,30 @@ static std::string getSimpleNodeLabel(const BasicBlock *Node) {
     return OS.str();
 }
 
-void BranchPredictPass::gatherDatasetCFG(Function& F, LoopInfo *LI, DominatorTree *DT) {
+void BranchPredictPass::gatherDataset(Function& F, LoopInfo *LI, DominatorTree *DT) {
     std::set<BasicBlock *> Visited;
-    std::string FilePath = getEnv("PROJECT_ROOT") + "/dataset/dataset_cfg.csv";
+    std::string FilePath = getEnv("PROJECT_ROOT") + "/dataset/dataset.csv";
+    std::string CFGFilePath = getEnv("PROJECT_ROOT") + "/dataset/dataset_cfg.csv";
     std::ostringstream ss;
  
+    {
+        std::ifstream F(FilePath.c_str());
+        if (!F.good()) { // file does not exists yet
+            std::ofstream DatasetFile;
+            DatasetFile.open(FilePath, std::ios_base::app);
+            auto Last = BranchFeatures::Features::last;
+            std::string Header = "";
+            for (int I = 0; I < Last; I++) {
+                Header += std::to_string(I) + ",";
+            } 
+            Header += "left_prob";
+            Header += ",";
+            Header += "right_prob";
+            DatasetFile << Header << std::endl;
+        } 
+    }
+
     ss << "f" << std::endl;
-    // DatasetFile << llvm::llvm_is_multithreaded() << std::endl;
     for (BasicBlock& BB :F) {
         auto name = getSimpleNodeLabel(&BB);
 
@@ -283,59 +299,17 @@ void BranchPredictPass::gatherDatasetCFG(Function& F, LoopInfo *LI, DominatorTre
             float LeftProb = float(Ratio) / 100;
             float RightProb = 1 - LeftProb;
 
+            std::ofstream DatasetFile;
+            DatasetFile.open(FilePath, std::ios_base::app);
+            DatasetFile << BF.toCSVLine() << std::to_string(LeftProb) << "," << std::to_string(RightProb) << std::endl;  
             ss << std::to_string(LeftProb) << "," << std::to_string(RightProb);  
         }
         ss << std::endl;
     }
     std::ofstream DatasetFile;
-    DatasetFile.open(FilePath, std::ios_base::app);
+    DatasetFile.open(CFGFilePath, std::ios_base::app);
     DatasetFile << ss.str();
     DatasetFile.close();
-}
-
-void BranchPredictPass::gatherDataset(Function& F, LoopInfo *LI, DominatorTree *DT) {
-    std::set<BasicBlock *> Visited;
-    for (BasicBlock& BB :F) {
-        BranchInst *BR = dyn_cast<BranchInst>(BB.getTerminator());
-        if (!BR)
-            continue;
-        if (BR->isUnconditional())
-            continue;
-
-        auto BP = getBranchProb(BR);
-        if (!BP.has_value()) {
-            continue;
-        }
-
-        BranchFeatures BF;
-        gatherBranchFeatures(BF, BR, LI, DT, Visited);
-        
-        auto Ratio = BP.value();
-        std::string FilePath = getEnv("PROJECT_ROOT") + "/dataset/dataset.csv";
-
-        std::ifstream F(FilePath.c_str());
-        if (!F.good()) { // file does not exists yet
-            std::ofstream DatasetFile;
-            DatasetFile.open(FilePath, std::ios_base::app);
-            auto Last = BranchFeatures::Features::last;
-            std::string Header = "";
-            for (int I = 0; I < Last; I++) {
-                Header += std::to_string(I) + ",";
-            } 
-            Header += "left_prob";
-            Header += ",";
-            Header += "right_prob";
-            DatasetFile << Header << std::endl;
-        } 
-
-        std::ofstream DatasetFile;
-        DatasetFile.open(FilePath, std::ios_base::app);
-
-        float LeftProb = float(Ratio) / 100;
-        float RightProb = 1 - LeftProb;
-
-        DatasetFile << BF.toCSVLine() << std::to_string(LeftProb) << "," << std::to_string(RightProb) << std::endl;  
-    }
 }
 
 PreservedAnalyses BranchPredictPass::run(Function &F, FunctionAnalysisManager &AM) {
@@ -348,9 +322,6 @@ PreservedAnalyses BranchPredictPass::run(Function &F, FunctionAnalysisManager &A
     
     if (EnableCollectDataset)
         gatherDataset(F,&LI,&DT);
-    
-    if (EnableCollectCFG)
-        gatherDatasetCFG(F,&LI,&DT);
     
     // predict the branch probability using MLP classification
     if (EnableBranchProbPredictMLPC) {

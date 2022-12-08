@@ -16,6 +16,7 @@ namespace llvm {
 class BranchPredictPass : public PassInfoMixin<BranchPredictPass> {
 private:
     void gatherDataset(Function& F, LoopInfo *LI, DominatorTree *DT);
+    void gatherDatasetCFG(Function& F, LoopInfo *LI, DominatorTree *DT);
     void gatherBranchFeatures(BranchFeatures& BF, BranchInst* BR, LoopInfo *LI, DominatorTree* DT, std::set<BasicBlock *> &Visited);
     void assignEqualBranchProb(Function &F);
     void predictBranchProb(Function& F, LoopInfo *LI, DominatorTree *DT, const std::string & ModelName);
